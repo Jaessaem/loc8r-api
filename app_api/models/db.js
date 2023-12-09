@@ -1,44 +1,63 @@
-const mongoose = require("mongoose");
-const dbURI = "mongodb+srv://user1:12341234@cluster0.sjaf4ap.mongodb.net/Loc8r";
+const mongoose = require('mongoose');
+const host = process.env.DB_HOST || '127.0.0.1'
+// const dbURL = `mongodb://${host}/Loc8r`;
+const dbURL = 'mongodb+srv://user1:12341234@cluster0.sjaf4ap.mongodb.net/Loc8r';
 
-mongoose.connect(dbURI, { useNewUrlParser: true });
+const readLine = require('readline');
+mongoose.set("strictQuery", false);
 
-mongoose.connection.on("connected", function () {
-  console.log("Mongoose connected to " + dbURI);
-});
-mongoose.connection.on("error", function (err) {
-  console.log("Mongoose connection error: " + err);
-});
-mongoose.connection.on("disconnected", function () {
-  console.log("Mongoose disconnected");
+const connect = () => {
+  setTimeout(() => mongoose.connect(dbURL, { useNewUrlParser: true }), 1000);
+}
+
+mongoose.connection.on('connected', () => {
+  console.log('Mongoose connented to ' + dbURL);
 });
 
-const gracefulShutdown = function (msg, callback) {
-  mongoose.connection.close(function () {
-    console.log("Mongoose disconnected through " + msg);
+mongoose.connection.on('error', err => {
+  console.log('error: ' + err);
+  return connect();
+});
+
+mongoose.connection.on('disconnected', () => {
+  console.log('disconnected to ' + dbURL);
+});
+
+if (process.platform === 'win32') {
+  const rl = readLine.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+  rl.on ('SIGINT', () => {
+    process.emit("SIGINT");
+  });
+}
+
+const gracefulShutdown = (msg, callback) => {
+  mongoose.connection.close( () => {
+    console.log(`Mongoose disconnected through ${msg}`);
     callback();
   });
 };
 
-// For nodemon restarts
-process.once("SIGUSR2", () => {
-  gracefulShutdown("nodemon restart", () => {
-    process.kill(process.pid, "SIGUSR2");
+process.once('SIGUSR2', () => {
+  gracefulShutdown('nodemon restart', () => {
+    process.kill(process.pid, 'SIGUSR2');
   });
 });
-
-// For app termination
-process.on("SIGINT", () => {
-  gracefulShutdown("app termination", () => {
+process.on('SIGINT', () => {
+  gracefulShutdown('app termination', () => {
+    process.exit(0);
+  });
+});
+process.on('SIGTERM', () => {
+  gracefulShutdown('Heroku app shutdown', () => {
     process.exit(0);
   });
 });
 
-// For Heroku app terination
-process.on("SIGTERM", () => {
-  gracefulShutdown("Heroku app shutdown", () => {
-    process.exit(0);
-  });
-});
+connect();
 
-require("./locations");
+require('./locations');
+require('./users');
+
